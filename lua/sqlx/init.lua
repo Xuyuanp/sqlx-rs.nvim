@@ -28,21 +28,18 @@ end
 ---@param sql string
 function M.format(sql)
     local args = vim.tbl_extend('force', default_config.format_opts, { sql = sql })
-    return vim.fn.systemlist({ 'python', M.script }, vim.fn.json_encode(args))
+    return vim.fn.systemlist({ 'python', M.script }, vim.json.encode(args))
 end
 
----@param bufnr number | nil
-function M.format_buf(bufnr)
-    bufnr = bufnr or 0
-    local parser = vim.F.npcall(vim.treesitter.get_parser, bufnr, 'rust')
-    if not parser then
-        vim.notify('Treesitter parser for rust is not installed', vim.log.levels.ERROR, { title = PLUGIN_NAME })
-        return
+local function get_query()
+    local query = vim.treesitter.query.get('rust', 'sqlx-query')
+    if query then
+        return query
     end
-    local tree = parser:parse()[1]
 
-    local query = vim.treesitter.query.parse(
+    vim.treesitter.query.set(
         'rust',
+        'sqlx-query',
         [[
 (
   (macro_invocation
@@ -58,6 +55,24 @@ function M.format_buf(bufnr)
 ]]
     )
 
+    return vim.treesitter.query.get('rust', 'sqlx-query')
+end
+
+---@param bufnr number | nil
+function M.format_buf(bufnr)
+    bufnr = bufnr or 0
+    local parser = vim.F.npcall(vim.treesitter.get_parser, bufnr, 'rust')
+    if not parser then
+        vim.notify('Treesitter parser for rust is not installed', vim.log.levels.ERROR, { title = PLUGIN_NAME })
+        return
+    end
+    local tree = parser:parse()[1]
+
+    local query = get_query()
+    if not query then
+        return
+    end
+
     for id, node, _ in query:iter_captures(tree:root(), bufnr, 0, -1) do
         if 'raw' == query.captures[id] then
             local text = vim.treesitter.get_node_text(node, bufnr)
@@ -70,15 +85,17 @@ function M.format_buf(bufnr)
                 return
             end
 
-            local start_row, start_col, end_row, end_col = node:range()
-            local rep = string.rep(' ', start_col)
-            for idx, line in ipairs(formatted) do
-                formatted[idx] = rep .. line
-            end
-            table.insert(formatted, 1, 'r#"')
-            table.insert(formatted, rep .. '"#')
+            if type(formatted) == 'table' and #formatted > 0 then
+                local start_row, start_col, end_row, end_col = node:range()
+                local rep = string.rep(' ', start_col)
+                for idx, line in ipairs(formatted) do
+                    formatted[idx] = rep .. line
+                end
+                table.insert(formatted, 1, 'r#"')
+                table.insert(formatted, rep .. '"#')
 
-            vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, formatted)
+                vim.api.nvim_buf_set_text(bufnr, start_row, start_col, end_row, end_col, formatted)
+            end
         end
     end
 end
