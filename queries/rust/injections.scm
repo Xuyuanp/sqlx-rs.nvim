@@ -6,11 +6,10 @@
      path: (identifier) @_path
      name: (identifier) @_identifier)
 
-  (token_tree (raw_string_literal) @injection.content))
+  (token_tree (raw_string_literal (string_content) @injection.content )))
 
  (#eq? @_path "sqlx")
  (#match? @_identifier "^query")
- (#offset! @injection.content 0 3 0 -2)
  (#set! injection.language "sql")
 )
 
@@ -20,10 +19,9 @@
      path: (identifier) @_path
      name: (identifier) @_identifier)
 
-  (token_tree (string_literal) @injection.content))
+  (token_tree (string_literal (string_content) @injection.content) ))
 
  (#eq? @_path "sqlx")
  (#match? @_identifier "^query")
- (#offset! @injection.content 0 1 0 -1)
  (#set! injection.language "sql")
 )
